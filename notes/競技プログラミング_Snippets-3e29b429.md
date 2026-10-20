@@ -38,3 +38,4 @@ Source: https://www.notion.so/3e29b4299e61816a96cad16cbd4d2ca4
 <page url="https://app.notion.com/p/3e29b4299e6181b6a3b6e9a500b7debf">08 データ構造とクエリ処理</page>
 <page url="https://app.notion.com/p/3e29b4299e6181888162e7de7c22843e">09 グラフアルゴリズム</page>
 <page url="https://app.notion.com/p/3ee9b4299e6181f9bee2f289c1fc2b67">10 アプローチ・典型テクニック</page>
+<empty-block/>
