@@ -337,9 +337,9 @@ print(seg.prod(0, 5)[0])  # 36
 	- 区間更新が必要なのに通常のSegTreeを使う
 	- 長さNで初期化し、各葉の要素数が0になる
 ## 関連 {toggle="true"}
-	- <mention-page url="https://app.notion.com/p/3e29b4299e6181e18292d0d9933ed639"/>
-	- <mention-page url="https://app.notion.com/p/3e29b4299e61816eaaaee0d5aace01ef"/>
-	- <mention-page url="https://app.notion.com/p/3e29b4299e61818780e2d000de2a3332"/>
+	- <mention-page url="https://app.notion.com/p/3e29b4299e6181e18292d0d9933ed639">セグメント木：一般形・適用例（ACL Python）</mention-page>
+	- <mention-page url="https://app.notion.com/p/3e29b4299e61816eaaaee0d5aace01ef">8.8 セグメント木：RMQ</mention-page>
+	- <mention-page url="https://app.notion.com/p/3e29b4299e61818780e2d000de2a3332">8.9 セグメント木：RSQ</mention-page>
 	## 公式資料 {toggle="true"}
 		- [AtCoder Library Lazy Segtreeドキュメント](https://atcoder.github.io/ac-library/production/document_en/lazysegtree.html)
 		- [ac-library-python](https://github.com/not522/ac-library-python)
