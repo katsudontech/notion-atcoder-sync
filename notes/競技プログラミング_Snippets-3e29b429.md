@@ -17,3 +17,5 @@ Source: https://www.notion.so/3e29b4299e61816a96cad16cbd4d2ca4
 <empty-block/>
 <page url="https://app.notion.com/p/4029b4299e6181c7b8f3c02b9d54fe82">ページ作成ルール</page>
 <empty-block/>
+<page url="https://app.notion.com/p/4129b4299e618121ac87fbaaba68da6d">解法の発想集</page>
+<page url="https://app.notion.com/p/4129b4299e6181c5b267f15a9e3766f0">問題別ノート</page>
