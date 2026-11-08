@@ -5,341 +5,423 @@ Source: https://www.notion.so/3e29b4299e6181b7a5b3d132ed547992
 ---
 
 <callout icon="⏳" color="orange_bg">
-	遅延セグメント木は、区間全体への更新と区間クエリをどちらも O(log N) で処理する。通常のSegTreeに「更新を必要になるまで保留する仕組み」を加えたもの。
+	遅延セグメント木は、区間全体への更新と区間クエリをともにO(log N)で処理するデータ構造。通常のセグ木の「区間情報を結合する仕組み」に、「更新をまとめて保持し、必要なときに子へ伝える仕組み」を加える。
 </callout>
-## いつ使うか {toggle="true"}
-	- 区間内の全要素に値を足しながら、区間和・最小値・最大値を求める
-	- 区間内の全要素を同じ値へ変更しながら、区間クエリを処理する
-	- 区間に一次関数を作用させる
-	- 更新と取得が交互に来るため、いもす法や累積和だけでは処理できない
-	一点更新だけなら、通常のSegTreeのほうが設計も実装も簡単。
 ## 一般形 {toggle="true"}
+	まず「区間に持たせる情報S」と「更新を表す情報F」を決める。S・Fは説明用の名前で、整数やタプルなどで表す。
 	```python
-# データ同士を結合する
+from atcoder.lazysegtree import LazySegTree
+
+# S同士を結合する
 def op(left, right):
     return ...
 
-
-# データ側の単位元
+# データSの単位元
 e = ...
 
-
-# 更新 f をデータ x に反映する
+# 更新f（F）を、区間情報x（S）に反映する
 def mapping(f, x):
     return ...
 
-
-# 既存の更新 g の後に、新しい更新 f を行う合成
-# 戻り値は f ∘ g
+# 古い更新gの後に、新しい更新fを行う更新Fを返す
 def composition(f, g):
     return ...
 
-
-# 何もしない更新
+# 何もしない更新F
 id_ = ...
 
-
-seg = LazySegTree(
-    op,
-    e,
-    mapping,
-    composition,
-    id_,
-    values,
-)
+# valuesは、各要素をSの形にした配列
+seg = LazySegTree(op, e, mapping, composition, id_, values)
 	```
-## 5つの定義 {toggle="true"}
-	<table fit-page-width="true" header-row="true">
+	<table header-row="true">
 <tr>
-<td>名前</td>
+<td>定義</td>
+<td>入力 → 出力</td>
 <td>役割</td>
 </tr>
 <tr>
-<td>`op(left, right)`</td>
-<td>左右の区間情報を結合する</td>
+<td>`op`</td>
+<td>S, S → S</td>
+<td>左右の区間情報を結合</td>
 </tr>
 <tr>
 <td>`e`</td>
-<td>データ側の単位元</td>
+<td>S</td>
+<td>空区間の情報</td>
 </tr>
 <tr>
-<td>`mapping(f, x)`</td>
-<td>更新fを区間情報xへ反映する</td>
+<td>`mapping`</td>
+<td>F, S → S</td>
+<td>区間情報へ更新を反映</td>
 </tr>
 <tr>
-<td>`composition(f, g)`</td>
-<td>既存の更新gの後に新しい更新fを行う合成。f ∘ gを返す</td>
+<td>`composition`</td>
+<td>F, F → F</td>
+<td>2つの更新を1つにまとめる</td>
 </tr>
 <tr>
 <td>`id_`</td>
-<td>何も変更しない更新</td>
+<td>F</td>
+<td>何もしない更新</td>
 </tr>
 	</table>
-## 成り立つ必要がある条件 {toggle="true"}
-	- `op` は結合的で、単位元 `e` を持つ
-	- 更新集合は、合成しても同じ種類の更新になる
-	- `id_` を作用させてもデータが変わらない
-	- 区間を結合してから更新しても、各区間を更新してから結合しても同じ結果になる
-	```plain text
-mapping(f, op(x, y))
-== op(mapping(f, x), mapping(f, y))
-	```
-	<callout icon="⚠️" color="yellow_bg">
-		composition(f, g) は「既存のgを行った後に、新しいfを行う更新」を返す。加算では順序が目立たないが、代入や一次関数では順番を逆にすると誤答になる。
+	<callout icon="💡" color="blue_bg">
+		**eは「データの単位元」、id_は「更新の単位元」。**区間加算＋区間和なら、eは合計も要素数も0の `(0, 0)`、id_は0を加える更新の `0`。役割も型も同じとは限らない。
 	</callout>
-## 実戦テンプレ：区間加算＋区間和 {toggle="true"}
-	区間和では、ノードに「合計・要素数」の2つを持たせる。区間へxを加えると、合計は x × 要素数だけ増えるため。
+## 遅延セグ木に載せられる条件 {toggle="true"}
+	### {toggle="true"}
+		1. 区間情報を結合できる
+		通常のセグ木と同じ。opの結果もSになり、結合則と単位元の条件を満たす。
+		```python
+op(op(x, y), z) == op(x, op(y, z))
+op(e, x) == op(x, e) == x
+		```
+	### {toggle="true"}
+		1. 更新をまとめられる
+		何もしない更新id_を用意し、更新を合成した結果もFで表せるようにする。
+		```python
+mapping(id_, x) == x
+mapping(composition(f, g), x) == mapping(f, mapping(g, x))
+		```
+		**composition(f, g)は「g → f」の順。**たとえば「3を代入」の後に「5を代入」なら、まとめた更新は「5を代入」になる。
+	### {toggle="true"}
+		1. 更新と区間の結合が両立する
+		区間を結合してから更新しても、それぞれを更新してから結合しても、同じ結果になる必要がある。
+		```python
+mapping(f, op(x, y)) == op(mapping(f, x), mapping(f, y))
+		```
+		区間和への加算では、合計だけだと何個分を加算すべきか分からない。Sを `(合計, 要素数)` にすると、この条件を満たす更新を作れる。
+## 代表的なS・F・単位元 {toggle="true"}
+	<table header-row="true">
+<tr>
+<td>更新＋取得</td>
+<td>S（区間情報）</td>
+<td>e</td>
+<td>F（更新）</td>
+<td>id_</td>
+</tr>
+<tr>
+<td>区間加算＋最小値</td>
+<td>最小値</td>
+<td>`float("inf")`</td>
+<td>加算値</td>
+<td>`0`</td>
+</tr>
+<tr>
+<td>区間加算＋最大値</td>
+<td>最大値</td>
+<td>`float("-inf")`</td>
+<td>加算値</td>
+<td>`0`</td>
+</tr>
+<tr>
+<td>区間加算＋区間和</td>
+<td>`(合計, 要素数)`</td>
+<td>`(0, 0)`</td>
+<td>加算値</td>
+<td>`0`</td>
+</tr>
+<tr>
+<td>区間代入＋区間和</td>
+<td>`(合計, 要素数)`</td>
+<td>`(0, 0)`</td>
+<td>代入値、またはNone</td>
+<td>`None`</td>
+</tr>
+<tr>
+<td>アフィン変換＋区間和</td>
+<td>`(合計, 要素数)`</td>
+<td>`(0, 0)`</td>
+<td>`(a, b)`：xをax+bにする</td>
+<td>`(1, 0)`</td>
+</tr>
+	</table>
+	タプルだから単位元が決まるわけではなく、**opの定義で決まる**。ここでの `(合計, 要素数)` は成分ごとに足すので、単位元は `(0, 0)`。更新側の `(1, 0)` は「1倍して0を足す」の意味。
+## 共通API {toggle="true"}
 	```python
-# S = (区間の合計, 区間の要素数)
-def op(left, right):
-    left_sum, left_size = left
-    right_sum, right_size = right
-    return (left_sum + right_sum, left_size + right_size)
+# 半開区間 [l, r) に更新fを適用する
+seg.apply(l, r, f)
 
+# 1要素だけに更新fを適用する（f=を付ける）
+seg.apply(p, f=f)
 
-e = (0, 0)
+# 1要素の情報をx（Sの形）へ置き換える
+seg.set(p, x)
 
+# 1要素の情報を取得する
+value = seg.get(p)
 
-# F = 区間へ加える値
-def mapping(f, x):
-    total, size = x
-    return (total + f * size, size)
+# 半開区間 [l, r) をopで結合する
+result = seg.prod(l, r)
 
-
-# 先にgを加え、その後fを加える
-def composition(f, g):
-    return f + g
-
-
-# 0を加えても変化しない
-id_ = 0
-
-
-A = list(map(int, input().split()))
-values = [(x, 1) for x in A]
-
-seg = LazySegTree(
-    op,
-    e,
-    mapping,
-    composition,
-    id_,
-    values,
-)
+# 配列全体をopで結合する
+result_all = seg.all_prod()
 	```
-## 基本操作 {toggle="true"}
-	```python
-# 半開区間 [l, r) の全要素に x を加える
-seg.apply(l, r, x)
+	- 添字は0-indexed、右端rは含まない。
+	- `set` は情報Sを直接置き換え、`apply` は更新Fを作用させる。
+	- Sがタプルなら、取得結果もタプル。`(合計, 要素数)` の合計だけ欲しいときは `seg.prod(l, r)[0]`。
+	- 空区間 `prod(l, l)` はeを返す。
+## 計算量 {toggle="true"}
+	op・mapping・compositionがO(1)の場合。
+	<table header-row="true">
+<tr>
+<td>操作</td>
+<td>計算量</td>
+</tr>
+<tr>
+<td>構築</td>
+<td>O(N)</td>
+</tr>
+<tr>
+<td>set・get・apply・prod</td>
+<td>O(log N)</td>
+</tr>
+<tr>
+<td>all_prod</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td>max_right・min_left</td>
+<td>O(log N)</td>
+</tr>
+	</table>
+	通常のSegTreeと違い、**getもO(log N)**。保留していた更新を葉まで伝える必要があるため。各関数がO(T)なら、上の関数呼び出しを含む計算量にその分が掛かる。
+## 基本例：区間加算＋区間最小値・最大値 {toggle="true"}
+	区間の全要素に同じ値を足すと、最小値・最大値もその値だけ増える。要素数は不要。
+	### 実装と例 {toggle="true"}
+		```python
+from atcoder.lazysegtree import LazySegTree
 
-# 1要素だけに更新xを適用する
-# Python版ではfをキーワード引数で渡す
-seg.apply(p, f=x)
-
-# 半開区間 [l, r) の合計
-total = seg.prod(l, r)[0]
-
-# A[p] の現在値
-value = seg.get(p)[0]
-
-# A[p] を x へ置き換える
-seg.set(p, (x, 1))
-
-# 配列全体の合計
-total_all = seg.all_prod()[0]
-	```
-## 動作例 {toggle="true"}
-	```python
-A = [1, 2, 3, 4, 5]
-values = [(x, 1) for x in A]
-
-seg = LazySegTree(
-    op, e, mapping, composition, id_, values
-)
-
-# A[1:4]の全要素に10を加える
-seg.apply(1, 4, 10)
-
-# 配列は [1, 12, 13, 14, 5] の状態
-print(seg.prod(1, 4)[0])  # 39
-print(seg.all_prod()[0])  # 45
-print(seg.get(2)[0])      # 13
-	```
-## なぜ要素数を持たせるのか {toggle="true"}
-	区間の合計だけを持つと、更新値を何回足すべきか分からない。
-	たとえば3要素を含む区間へ10を加えると、区間和は10ではなく30増える。そのため `S = (合計, 要素数)` として、`mapping` で `f * size` を加算する。
-	<callout icon="⚠️" color="red_bg">
-		区間加算＋区間和を長さNだけで初期化してはいけない。LazySegTree(..., N) では各要素がe=(0, 0)になり、要素数が0のままになる。0配列から始める場合も \[(0, 1) for _ in range(N)\] を渡す。
-	</callout>
-	```python
-# 0がN個ある配列から始める正しい方法
-values = [(0, 1) for _ in range(N)]
-seg = LazySegTree(
-    op, e, mapping, composition, id_, values
-)
-	```
-## 適用例2：区間加算＋区間最小値 {toggle="true"}
-	最小値は区間の長さを必要としないため、データSを整数のまま扱える。
-	```python
-def op(a, b):
-    return min(a, b)
-
-
+# S = 区間最小値、F = 加算する値
+op = min
 e = float("inf")
-
 
 def mapping(f, x):
     return x + f
 
-
 def composition(f, g):
     return f + g
-
 
 id_ = 0
 
 A = [5, 2, 8, 6, 1]
 seg = LazySegTree(op, e, mapping, composition, id_, A)
 
-# A[1:4]に3を加える
+seg.apply(1, 4, 3)         # [5, 5, 11, 9, 1]
+print(seg.prod(1, 4))      # 5
+print(seg.all_prod())      # 1
+print(seg.get(2))          # 11
+		```
+	### 最大値にする場合 {toggle="true"}
+		上の例のmapping・composition・id_はそのままで、opとeを変更する。
+		```python
+seg = LazySegTree(
+    max, float("-inf"), mapping, composition, id_, A
+)
 seg.apply(1, 4, 3)
+print(seg.prod(1, 4))  # max(5, 11, 9) = 11
+		```
+	使いどころ：連続した範囲の値を一括で増減させながら、最小値・最大値を求める。
+## 基本例：区間加算＋区間和 {toggle="true"}
+	Sを `(合計, 要素数)` にする。区間の各要素へfを加えると、合計は `f × 要素数` だけ増える。
+	### 実装と例 {toggle="true"}
+		```python
+from atcoder.lazysegtree import LazySegTree
 
-print(seg.prod(1, 4))  # min(5, 11, 9) = 5
-print(seg.all_prod())  # 1
-	```
-## 適用例3：区間代入＋区間和 {toggle="true"}
-	更新Fを「代入する値」、`None` を「何もしない更新」として扱う。
-	```python
-# S = (区間の合計, 区間の要素数)
+# S = (合計, 要素数)、F = 加算する値
 def op(left, right):
     return (left[0] + right[0], left[1] + right[1])
 
+e = (0, 0)
+
+def mapping(f, x):
+    total, size = x
+    return (total + f * size, size)
+
+def composition(f, g):
+    return f + g
+
+id_ = 0
+
+A = [1, 2, 3, 4, 5]
+values = [(a, 1) for a in A]
+seg = LazySegTree(op, e, mapping, composition, id_, values)
+
+seg.apply(1, 4, 10)        # [1, 12, 13, 14, 5]
+print(seg.prod(1, 4)[0])   # 39
+print(seg.all_prod()[0])   # 45
+
+seg.apply(0, f=2)          # 先頭だけに2を加える
+seg.set(2, (7, 1))         # A[2]を7に置き換える
+print(seg.get(2)[0])       # 7
+print(seg.all_prod()[0])   # 41
+		```
+	### 単位元と初期値の違い {toggle="true"}
+		- 空区間：`e = (0, 0)`
+		- 値が0の1要素：`(0, 1)`
+		- 値がaの1要素：`(a, 1)`
+		最後の引数にNを渡すと全要素がeになる。この設計では要素数がすべて0になってしまうため、0配列も次のように作る。
+		```python
+values = [(0, 1) for _ in range(N)]
+seg = LazySegTree(op, e, mapping, composition, id_, values)
+		```
+	使いどころ：範囲への加算と、途中時点での区間合計の取得が交互に来る。
+## 適用例1：区間代入＋区間和 {toggle="true"}
+	区間の全要素をfへ置き換えると、合計は `f × 要素数` になる。後から来た代入が古い代入を上書きする。
+	```python
+from atcoder.lazysegtree import LazySegTree
+
+# S = (合計, 要素数)、F = 代入する値（Noneは何もしない）
+def op(left, right):
+    return (left[0] + right[0], left[1] + right[1])
 
 e = (0, 0)
 
-
-# fがNoneなら何もしない
-# それ以外なら区間全体をfへ変更する
 def mapping(f, x):
-    total, size = x
-
     if f is None:
         return x
+    return (f * x[1], x[1])
 
-    return (f * size, size)
-
-
-# 新しい代入fがあれば、以前の代入gを上書きする
 def composition(f, g):
-    if f is None:
-        return g
-
-    return f
-
+    return g if f is None else f
 
 id_ = None
 
 A = [1, 2, 3, 4, 5]
-values = [(x, 1) for x in A]
 seg = LazySegTree(
-    op, e, mapping, composition, id_, values
+    op, e, mapping, composition, id_, [(a, 1) for a in A]
 )
 
-# A[1:4]をすべて10へ変更
-seg.apply(1, 4, 10)
+seg.apply(1, 4, 10)        # [1, 10, 10, 10, 5]
+print(seg.all_prod()[0])   # 36
 
-# 配列は [1, 10, 10, 10, 5] の状態
-print(seg.prod(0, 5)[0])  # 36
+seg.apply(2, 5, 0)         # [1, 10, 0, 0, 0]
+print(seg.all_prod()[0])   # 11
 	```
-	この例では `composition(新しい更新, 既存の更新)` の順番が重要。新しい代入は以前の代入を上書きする。
-## ACL Pythonの主なAPI {toggle="true"}
-	<table fit-page-width="true" header-row="true">
+	<callout icon="💡" color="blue_bg">
+		0を代入する更新もあるため、「何もしない更新」に0は使わない。この例ではNoneを使う。ACL PythonのapplyはNoneを受け付けないので、`seg.apply(..., None)` は呼ばず、何もしないときは呼び出し自体を省く。内部のid_としてNoneを使うことはできる。
+	</callout>
+## 適用例2：アフィン変換＋区間和 {toggle="true"}
+	各要素xを `a*x + b` へ変える。Fを `(a, b)` とすると、加算・乗算・代入を同じ形式で扱える。
+	<table header-row="true">
 <tr>
-<td>操作</td>
-<td>意味</td>
-<td>計算量</td>
+<td>やりたい更新</td>
+<td>F</td>
 </tr>
 <tr>
-<td>`set(p, x)`</td>
-<td>1要素をxへ置き換える</td>
-<td>O(log N)</td>
+<td>cを加える</td>
+<td>`(1, c)`</td>
 </tr>
 <tr>
-<td>`get(p)`</td>
-<td>1要素を取得する</td>
-<td>O(log N)</td>
+<td>c倍する</td>
+<td>`(c, 0)`</td>
 </tr>
 <tr>
-<td>`prod(l, r)`</td>
-<td>半開区間をopで結合する</td>
-<td>O(log N)</td>
+<td>cを代入する</td>
+<td>`(0, c)`</td>
 </tr>
 <tr>
-<td>`all_prod()`</td>
-<td>配列全体をopで結合する</td>
-<td>O(1)</td>
-</tr>
-<tr>
-<td>`apply(p, f=f)`</td>
-<td>1要素へ更新fを適用する</td>
-<td>O(log N)</td>
-</tr>
-<tr>
-<td>`apply(l, r, f)`</td>
-<td>半開区間へ更新fを適用する</td>
-<td>O(log N)</td>
-</tr>
-<tr>
-<td>`max_right(l, g)`</td>
-<td>左端を固定した境界探索</td>
-<td>O(log N)</td>
-</tr>
-<tr>
-<td>`min_left(r, g)`</td>
-<td>右端を固定した境界探索</td>
-<td>O(log N)</td>
+<td>何もしない</td>
+<td>`(1, 0)`</td>
 </tr>
 	</table>
-	構築はO(N)。各関数自体がO(T)なら、操作の計算量にもO(T)が掛かる。
-## 通常のSegTreeとの使い分け {toggle="true"}
-	<table fit-page-width="true" header-row="true">
+	古い更新gが `c*x + d`、新しい更新fが `a*x + b` なら、合成は `a*(c*x+d)+b = (a*c)*x+(a*d+b)`。
+	```python
+from atcoder.lazysegtree import LazySegTree
+
+MOD = 998244353
+
+# S = (合計 mod MOD, 要素数)
+def op(left, right):
+    return ((left[0] + right[0]) % MOD, left[1] + right[1])
+
+e = (0, 0)
+
+# F = (a, b)：各要素を a*x + b にする
+def mapping(f, x):
+    a, b = f
+    total, size = x
+    return ((a * total + b * size) % MOD, size)
+
+def composition(f, g):
+    a, b = f
+    c, d = g
+    return (a * c % MOD, (a * d + b) % MOD)
+
+id_ = (1, 0)
+
+A = [1, 2, 3]
+seg = LazySegTree(
+    op, e, mapping, composition, id_,
+    [(a % MOD, 1) for a in A]
+)
+
+seg.apply(0, 3, (2, 1))    # [3, 5, 7]
+seg.apply(1, 3, (3, 4))    # [3, 19, 25]
+print(seg.all_prod()[0])   # 47
+	```
+	この例は合計を998244353で割った余りを求める。要素数はそのまま保持する。
+## 適用例3：max_rightによる境界探索 {toggle="true"}
+	通常のセグ木と同様に、区間更新後でも条件を満たす境界を探せる。
+	```python
+# 「区間加算＋区間和」のop・e・mapping・composition・id_を使う
+A = [2, 1, 3, 2, 4]
+seg = LazySegTree(
+    op, e, mapping, composition, id_, [(a, 1) for a in A]
+)
+
+seg.apply(1, 3, 1)         # [2, 2, 4, 2, 4]
+l = 1
+limit = 6
+r = seg.max_right(l, lambda s: s[0] <= limit)
+
+print(r)                  # 3
+print(seg.prod(l, r)[0])   # 6
+	```
+	この例は `A[1:3]` の合計6まで条件を満たし、次の要素を含むと8になる。
+	- `max_right(l, g)`：左端lを固定し、条件を満たす最大の右端を探す。
+	- `min_left(r, g)`：右端rを固定し、条件を満たす最小の左端を探す。
+	- 判定は区間を伸ばすとTrueからFalseへ変わるようにし、`g(e)` はTrueにする。
+	- 同じ入力には同じ判定を返し、副作用を持たせない。
+	- 区間和が上限以下かを判定する場合、更新後も全要素が非負であることを確認する。負数があると単調性が崩れる。
+## どのデータ構造を選ぶか {toggle="true"}
+	<table header-row="true">
 <tr>
-<td>必要な操作</td>
-<td>選択</td>
+<td>条件</td>
+<td>候補</td>
 </tr>
 <tr>
-<td>一点更新＋区間取得</td>
+<td>更新なし・区間和</td>
+<td>累積和</td>
+</tr>
+<tr>
+<td>一点加算・区間和</td>
+<td>Fenwick Tree</td>
+</tr>
+<tr>
+<td>一点更新・一般的な区間クエリ</td>
 <td>SegTree</td>
 </tr>
 <tr>
-<td>区間更新＋区間取得</td>
-<td>LazySegTree</td>
+<td>区間更新・区間クエリを交互に処理</td>
+<td>条件を満たすならLazySegTree</td>
 </tr>
 <tr>
-<td>最後にまとめて区間加算の結果だけ欲しい</td>
+<td>区間加算をすべて終えた後の配列だけ欲しい</td>
 <td>いもす法</td>
 </tr>
 	</table>
-## 注意事項 {toggle="true"}
-	- `apply(l, r, f)` と `prod(l, r)` はどちらも半開区間
-	- ACL Pythonで一点だけに適用するときは `apply(p, f=f)` とキーワード引数を使う
-	- `set` は値の置き換え、`apply` は定義した更新の適用
-	- `composition(f, g)` は新しいfを既存のgの後に作用させる
-	- データS・更新F・e・id_の型と意味を最初に明確にする
-	- `mapping` の戻り値はデータS、`composition` の戻り値は更新F
-	- 代入更新のid_には、実際の更新値と衝突しない値を使う
-	- 通常のSegTreeと違い、`get` も遅延更新を伝播するためO(log N)
-## よくあるミス {toggle="true"}
-	- 区間加算＋区間和で、ノードに要素数を持たせない
-	- compositionの引数順を逆にする
-	- 0を代入する更新と「何もしない更新」を同じ0で表す
-	- `apply(l, r, f)` の右端rを含むと思い込む
-	- 区間更新が必要なのに通常のSegTreeを使う
-	- 長さNで初期化し、各葉の要素数が0になる
-## 関連 {toggle="true"}
+	区間更新なら何でも扱えるわけではない。たとえば区間の各値を上限で切り詰めて区間和を求める操作は、`(合計, 要素数)` だけから更新後の合計を決められない。
+## 注意事項・よくあるミス {toggle="true"}
+	- `composition(f, g)` の順番は **古いg → 新しいf**。加算だけで確認すると、順序の間違いに気づきにくい。
+	- 区間和への加算で `total + f` にしない。`total + f * size` にする。
+	- タプルの `left + right` は連結。成分ごとの加算は明示する。
+	- `set(p, x)` にはSを渡す。合計・要素数を持つ例なら `set(p, (x, 1))`。
+	- `apply(p, f)` は一点更新として使わない。Python版では `apply(p, f=f)` と書く。
+	- `prod(l, r)` と `apply(l, r, f)` の右端rは含まない。
+	- SとFの単位元を混同しない。特に空区間と、値が0の実在する要素を区別する。
+	- 更新後の値はsegから取得する。元の配列Aは自動では更新されない。
+## 関連・公式資料 {toggle="true"}
 	- <mention-page url="https://app.notion.com/p/3e29b4299e6181e18292d0d9933ed639">セグメント木：一般形・適用例（ACL Python）</mention-page>
-	- <mention-page url="https://app.notion.com/p/3e29b4299e61816eaaaee0d5aace01ef">8.8 セグメント木：RMQ</mention-page>
-	- <mention-page url="https://app.notion.com/p/3e29b4299e61818780e2d000de2a3332">8.9 セグメント木：RSQ</mention-page>
-	## 公式資料 {toggle="true"}
-		- [AtCoder Library Lazy Segtreeドキュメント](https://atcoder.github.io/ac-library/production/document_en/lazysegtree.html)
-		- [ac-library-python](https://github.com/not522/ac-library-python)
+	- [AtCoder Library：Lazy Segtree](https://atcoder.github.io/ac-library/production/document_ja/lazysegtree.html)
+	- [ac-library-python：LazySegTreeの実装](https://github.com/not522/ac-library-python/blob/master/atcoder/lazysegtree.py)

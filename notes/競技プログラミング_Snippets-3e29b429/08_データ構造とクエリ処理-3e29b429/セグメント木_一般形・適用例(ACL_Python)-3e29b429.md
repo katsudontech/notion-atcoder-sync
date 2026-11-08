@@ -105,17 +105,100 @@ result = seg.prod(l, r)
 # 配列全体をopで結合する
 result_all = seg.all_prod()
 	```
-## 適用例1：区間最大値 {toggle="true"}
-	```python
-A = [3, 1, 4, 1, 5]
-seg = SegTree(max, float("-inf"), A)
+	- `op(a, b)`：左右の区間情報を結合する関数
+	- `e`：何と結合しても結果を変えない単位元
+	- 第三引数：初期配列、または要素数 `N`。要素数を渡すと全要素が `e` になる
+	- 添字は0-indexed。`prod(l, l)` のような空区間では `e` が返る（RMQはINF、RSQは0）
+## 計算量 {toggle="true"}
+	以下は `op` がO(1)の場合。
+	- 構築：O(N)
+	- `set`：O(log N)
+	- `get`：O(1)
+	- `prod`：O(log N)
+	- `all_prod`：O(1)
+## 基本例：RMQ（区間最小値、最大値） {toggle="true"}
+	演算は `min`、単位元は `INF`。一点更新を行いながら区間最小値を求める。
+	### 実戦テンプレ {toggle="true"}
+		```python
+INF = float("inf")
 
-print(seg.prod(1, 4))  # max(1, 4, 1) = 4
+# op：区間の情報を結合する演算
+# e ：opの単位元。min(INF, x) == x
+def op(a, b):
+    return min(a, b)
 
-seg.set(2, 0)
-print(seg.prod(1, 4))  # max(1, 0, 1) = 1
-	```
-	使いどころ：値を更新しながら、任意区間の最大値を求める問題。
+
+A = list(map(int, input().split()))
+seg = SegTree(op, INF, A)
+		```
+		```python
+# 一度に書くときはこんなかんじ
+seg = SegTree(min, INF, A)
+
+# 最大値を求めたいときは以下
+seg = SefTree(max, -INF, A)
+
+# 最初から配列がない場合は第三引数で長さを渡せる。
+# このとき、最初の要素はすべてINF
+seg = SegTree(min, INF, N)
+		```
+	### 例 {toggle="true"}
+		詳しい関数は、共通APIを参照。
+		```python
+A = [5, 2, 8, 6, 1]
+seg = SegTree(min, float("inf"), A)
+
+print(seg.prod(1, 4))  # min(2, 8, 6) = 2
+
+seg.set(1, 7)          # A[1]を2から7へ変更
+
+print(seg.prod(1, 4))  # min(7, 8, 6) = 6
+print(seg.get(1))      # 7
+print(seg.all_prod())  # 1
+		```
+	### 使う場面 {toggle="true"}
+		- 配列の値を更新しながら区間最小値を何度も求める
+		- 全区間を毎回走査すると間に合わない
+		- クエリ数が多い
+## 基本例：RSQ（区間和） {toggle="true"}
+	演算は加算、単位元は `0`。一点更新を行いながら区間和を求める。
+	### 実戦テンプレ {toggle="true"}
+		```python
+# op：区間の情報を結合する演算
+# e ：opの単位元。0 + x == x
+def op(a, b):
+    return a + b
+
+
+A = list(map(int, input().split()))
+seg = SegTree(op, 0, A)
+		```
+		```python
+# 短く書くなら以下
+seg = SegTree(lambda a, b: a + b, 0, A)
+# 第三引数に要素数を渡すと、単位元で初期化される。
+seg = SegTree(lambda a, b: a + b, 0, N)
+		```
+	### 例 {toggle="true"}
+		```python
+A = [5, 2, 8, 6, 1]
+seg = SegTree(lambda a, b: a + b, 0, A)
+
+print(seg.prod(1, 4))  # 2 + 8 + 6 = 16
+
+seg.set(1, 7)          # A[1]を2から7へ変更
+
+print(seg.prod(1, 4))  # 7 + 8 + 6 = 21
+
+seg.set(2, seg.get(2) + 3)  # A[2]に3を加算
+
+print(seg.get(2))      # 11
+print(seg.all_prod())  # 30
+		```
+	### 使う場面 {toggle="true"}
+		- 配列の値を更新しながら区間和を何度も求める
+		- 累積和では対応しにくい、途中で値が変わる問題
+		- 一点更新と区間クエリが大量にある
 ## 適用例2：区間GCD {toggle="true"}
 	```python
 A = [12, 18, 24, 30]
@@ -126,14 +209,14 @@ print(seg.prod(0, 3))  # math.gcd(12, 18, 24) = 6
 seg.set(1, 20)
 print(seg.prod(0, 3))  # math.gcd(12, 20, 24) = 4
 	```
-	使いどころ：更新を含む区間の最大公約数、区間全体を同じ数で割れるかの判定。
+	使いどころ：更新を含む区間の最大公約数、**区間全体を同じ数で割れるか**の判定。
 ## 適用例3：最小値とその添字を同時に取得 {toggle="true"}
 	各要素を「値・添字」のタプルにする。Pythonのタプルは辞書順比較なので、値が同じ場合は小さい添字が選ばれる。
 	```python
 A = [5, 2, 8, 2, 7]
 
 values = [(value, index) for index, value in enumerate(A)]
-e = (float("inf"), float("inf"))
+e = (INF, INF) # 最大値だったらどっちにもマイナスを付ける
 seg = SegTree(min, e, values)
 
 minimum, index = seg.prod(0, len(A))
@@ -146,6 +229,7 @@ minimum, index = seg.prod(0, len(A))
 print(minimum, index)  # 2 3
 	```
 	使いどころ：区間の最小値だけでなく、それが存在する位置も必要な問題。
+	多分、この場合、同率だった場合最小値ならちっちゃいインデックスが選ばれるはず違ったらごめん
 ## 適用例4：複数の情報を1ノードに持たせる {toggle="true"}
 	区間平均は平均同士を直接結合できないが、「合計・個数」のペアなら結合できる。
 	```python
@@ -225,10 +309,18 @@ print(seg.prod(l, r)) # A[1] + A[2] = 4
 	- 区間への一括更新は通常のSegTreeでは処理できないため、LazySegTreeを検討する
 ## よくあるミス {toggle="true"}
 	- 減算・除算・単純な平均など、結合的でない演算をそのままopにする
-	- RMQの単位元を0にする
+	- RMQの単位元を0にする、またはRSQの単位元をINFにする
+	- 最大値を求めたいのに `min` を使う
+	- 閉区間のつもりで `prod(l, r)` を呼び、右端を1つ落とす
+	- 一点加算で `seg.set(p, x)` と書き、元の値を消す（加算は `seg.set(p, seg.get(p) + x)`）
+	- 更新後も元配列Aを参照し、SegTree内の値と食い違う
 	- max_rightで単調でない条件を使う
 	- 元配列Aだけを更新し、SegTree側へsetし忘れる
 	- 1-indexedの入力を0-indexedへ変換し忘れる
 ## 公式資料 {toggle="true"}
 	- [ac-library-python SegTreeの実装](https://github.com/not522/ac-library-python/blob/master/atcoder/segtree.py)
 	- [AtCoder Library SegTreeドキュメント](https://atcoder.github.io/ac-library/production/document_en/segtree.html)
+## 統合前のページ（保管用） {toggle="true"}
+	RMQ・RSQの内容は、このページの基本例・共通API・計算量・注意事項に統合済み。
+	<page url="https://app.notion.com/p/3e29b4299e61816eaaaee0d5aace01ef">8.8 セグメント木：RMQ最小値</page>
+	<page url="https://app.notion.com/p/3e29b4299e61818780e2d000de2a3332">8.9 セグメント木：RSQ和</page>

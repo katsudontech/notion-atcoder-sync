@@ -1,4 +1,4 @@
-# 8.4 連想配列（dict / defaultdict / Counter）
+# 連想配列（dict / defaultdict / Counter）
 
 Source: https://www.notion.so/3e29b4299e6181dd8e9cc505199c68af
 

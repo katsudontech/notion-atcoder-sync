@@ -1,4 +1,4 @@
-# 8.3 優先度付きキュー（heapq）
+# 優先度付きキュー（heapq）
 
 Source: https://www.notion.so/3e29b4299e618158a66eca986db60d55
 
