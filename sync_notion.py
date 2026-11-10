@@ -33,13 +33,17 @@ class NotionClient:
         self.token = token
 
     def get(self, path: str, query: dict[str, str | int] | None = None) -> dict:
+        return self.request(path, query=query)
+
+    def request(self, path: str, query=None, payload=None) -> dict:
         url = API_BASE + path
         if query:
             url += "?" + urlencode(query)
-        request = Request(url, headers={
+        request = Request(url, data=None if payload is None else json.dumps(payload).encode("utf-8"), headers={
             "Authorization": "Bearer " + self.token,
             "Notion-Version": API_VERSION,
             "Accept": "application/json",
+            "Content-Type": "application/json",
             "User-Agent": "atcoder-notion-sync/1.0",
         })
         for attempt in range(6):
@@ -76,6 +80,32 @@ class NotionClient:
             cursor = data.get("next_cursor")
             if not cursor:
                 raise RuntimeError("Pagination indicated has_more but had no next_cursor")
+
+    def database_pages(self, database_id: str):
+        database = self.get(f"/databases/{database_id}")
+        sources = database.get("data_sources")
+        if not isinstance(sources, list) or not sources:
+            raise RuntimeError(f"Missing data sources for database {database_id}")
+        for source in sources:
+            source_id = clean_id(source["id"])
+            cursor = None
+            cursors = set()
+            while True:
+                payload = {"page_size": 100}
+                if cursor:
+                    payload["start_cursor"] = cursor
+                data = self.request(f"/data_sources/{source_id}/query", payload=payload)
+                for page in data["results"]:
+                    if page.get("object") != "page":
+                        raise RuntimeError(f"Unexpected query result in data source {source_id}")
+                    if not page.get("archived") and not page.get("in_trash"):
+                        yield page
+                if not data.get("has_more"):
+                    break
+                cursor = data.get("next_cursor")
+                if not cursor or cursor in cursors:
+                    raise RuntimeError(f"Invalid pagination in data source {source_id}")
+                cursors.add(cursor)
 
     def markdown(self, page_id: str) -> str:
         response = self.get(f"/pages/{page_id}/markdown")
@@ -145,7 +175,24 @@ def export(client: NotionClient, root_id: str, output: Path) -> int:
                 child_title = block.get("child_page", {}).get("title", "Untitled")
                 visit(clean_id(block["id"]), child_title, folder, depth + 1)
             elif block.get("type") == "child_database":
-                raise RuntimeError(f"Child database under {title}; scope needs manual review")
+                database_id = clean_id(block["id"])
+                database_title = block.get("child_database", {}).get("title") or "Untitled database"
+                database_folder = folder + (filename(database_title, database_id),)
+                lines.append(f"{'  ' * (depth + 1)}- {database_title} (database)")
+                pages = []
+                for page in client.database_pages(database_id):
+                    pages.append(page)
+                    if len(pages) + count > MAX_PAGES:
+                        raise RuntimeError("Exceeded MAX_PAGES; review export scope")
+                # Stable ordering independent of database view order.
+                for page in sorted(pages, key=lambda page: page["id"]):
+                    page_title = "Untitled"
+                    for prop in page.get("properties", {}).values():
+                        if prop.get("type") == "title":
+                            page_title = "".join(part.get("plain_text", part.get("text", {}).get("content", ""))
+                                                 for part in prop.get("title", [])) or "Untitled"
+                            break
+                    visit(clean_id(page["id"]), page_title, database_folder, depth + 2)
 
     try:
         visit(root_id, "競技プログラミング Snippets", (), 0)
