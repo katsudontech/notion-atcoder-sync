@@ -58,3 +58,31 @@ class DatabaseTests(unittest.TestCase):
                     export(client, ROOT, output)
             self.assertEqual(snapshot, {p.relative_to(output): p.read_bytes() for p in output.rglob('*.md')})
             self.assertFalse(output.with_name('notes-staging').exists())
+
+    def test_duplicate_routes_and_cycle_export_once(self):
+        class Client:
+            def __init__(self):
+                self.fetched = []
+            def markdown(self, pid):
+                self.fetched.append(pid)
+                return 'body'
+            def children(self, pid):
+                if pid == ROOT:
+                    yield {'id': ROW, 'type': 'child_page', 'child_page': {'title': '問題'}}
+                    yield {'id': DB, 'type': 'child_database', 'child_database': {'title': '典型90'}}
+                if pid == ROW:
+                    yield {'id': ROOT, 'type': 'child_page', 'child_page': {'title': '親への参照'}}
+            def database_pages(self, pid):
+                for _ in range(501):
+                    yield row()
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / 'notes'
+            client = Client()
+            self.assertEqual(export(client, ROOT, output), 2)
+            self.assertEqual(client.fetched, [ROOT, ROW])
+            self.assertEqual(len(list(output.rglob('*.md'))), 3)
+            index = (output / 'README.md').read_text()
+            self.assertIn('001 - Yokan Party', index)
+            import re
+            for target in re.findall(r'\(<(.*?)>\)', index):
+                self.assertTrue((output / target).is_file(), target)
